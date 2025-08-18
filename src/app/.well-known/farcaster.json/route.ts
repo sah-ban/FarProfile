@@ -21,6 +21,9 @@ export async function GET() {
       webhookUrl: `${appUrl}/api/webhook`,
       castShareUrl: appUrl,
       primaryCategory: "social",
+      baseBuilder: {
+        allowedAddresses: ["0x06e5B0fd556e8dF43BC45f8343945Fb12C6C3E90"],
+      },
     },
   };
 
