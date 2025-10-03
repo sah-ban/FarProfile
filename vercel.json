@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "crons": [
-    {
-      "path": "/api/cast",
-      "schedule": "0 11 * * 1"
-    }
-  ]
-}
