@@ -27,7 +27,7 @@ export async function generateMetadata({
         type: "launch_frame",
         name: "FarProfile",
         url: appUrl,
-        splashImageUrl: `${appUrl}/logo.png`,
+        splashImageUrl: `${appUrl}/splash.png`,
         splashBackgroundColor: "#8660cc",
       },
     },

@@ -16,7 +16,7 @@ export async function GET() {
       homeUrl: appUrl,
       imageUrl: `${appUrl}/og.png`,
       buttonTitle: "FarProfile",
-      splashImageUrl: `${appUrl}/logo.png`,
+      splashImageUrl: `${appUrl}/splash.png`,
       splashBackgroundColor: "#8660cc",
       webhookUrl: `${appUrl}/api/webhook`,
       castShareUrl: appUrl,
