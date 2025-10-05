@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
-import sdk, { type Context } from "@farcaster/frame-sdk";
+import sdk, { type Context } from "@farcaster/miniapp-sdk";
 import {
   useAccount,
   useSendTransaction,
@@ -18,7 +18,7 @@ import { BaseError, UserRejectedRequestError } from "viem";
 
 export default function Main() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
-  const [context, setContext] = useState<Context.FrameContext>();
+  const [context, setContext] = useState<Context.MiniAppContext>();
   const [txHash, setTxHash] = useState<string | null>(null);
   const [refid, setRefid] = useState<string | undefined>();
 
