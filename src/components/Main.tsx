@@ -13,7 +13,6 @@ import { abi } from "../contracts/abi";
 import axios from "axios";
 import { useSearchParams } from "next/navigation";
 import { config } from "~/components/providers/WagmiProvider";
-import { truncateAddress } from "~/lib/truncateAddress";
 import { BaseError, UserRejectedRequestError } from "viem";
 
 export default function Main() {
@@ -482,7 +481,6 @@ export default function Main() {
           {isSendTxError && renderError(sendTxError)}
           {txHash && (
             <div className="mt-2 text-xs">
-              <div>Hash: {truncateAddress(txHash)}</div>
               <div>
                 Status:{" "}
                 {isConfirming
