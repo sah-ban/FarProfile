@@ -11,7 +11,7 @@ import CheckInStreakABI from "../contracts/streakAbi.json";
 import USDCABI from "../contracts/USDC.json";
 import { Hash } from "viem";
 import { base } from "wagmi/chains";
-import sdk from "@farcaster/miniapp-sdk";
+import sdk, { type Context } from "@farcaster/miniapp-sdk";
 
 const CONTRACT_ADDRESS: Address = "0xE4EE6c6c75066AdFE8a69CC2fc3EAB26D0Be0837";
 const USDC_ADDRESS: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -34,6 +34,7 @@ const CheckInComponent: React.FC = () => {
   const [depositAmount, setDepositAmount] = useState<string>("");
   const [newClaimAmount, setNewClaimAmount] = useState<string>("");
   const [approveHash, setApproveHash] = useState<Hash | undefined>(undefined);
+  const [context, setContext] = useState<Context.MiniAppContext>();
 
   const { isSuccess: isApproved } = useWaitForTransactionReceipt({
     hash: approveHash,
@@ -219,6 +220,20 @@ const CheckInComponent: React.FC = () => {
       deposit();
     }
   }, [isApproved, depositAmount, writeContract]);
+
+  useEffect(() => {
+    async function fetchData() {
+      const context = await sdk.context;
+      setContext(context);
+    }
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (!context?.client.added && isConfirmed) {
+      sdk.actions.addMiniApp();
+    }
+  }, [context?.client.added, isConfirmed]);
 
   return (
     <div className="p-2 rounded-lg text-black text-sm">
