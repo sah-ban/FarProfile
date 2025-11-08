@@ -1,27 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 
+interface WalletLabel {
+  address: string;
+  labels: string[];
+}
+
 export async function GET(req: NextRequest) {
   const fid = req.nextUrl.searchParams.get("fid");
+
+  if (!fid) {
+    return NextResponse.json({ error: "fid is required" }, { status: 400 });
+  }
 
   try {
     const apiUrl = `https://api.farcaster.xyz/v2/user?fid=${fid}`;
     const response = await axios.get(apiUrl);
 
-    const pfpUrl = response.data?.result?.user?.pfp?.url;
-    const username = response.data?.result?.user?.username;
-    const display_name = response.data?.result?.user?.displayName;
-    const fids = response.data?.result?.user?.fid;
-    const followerscount = response.data?.result?.user?.followerCount;
-    const followCount = response.data?.result?.user?.followingCount;
+    const user = response.data?.result?.user;
+    const extras = response.data?.result?.extras;
 
+    const ethWallets: string[] = extras?.ethWallets || [];
+    const walletLabels: WalletLabel[] = extras?.walletLabels || [];
+
+    const allEthWallets = walletLabels
+      .filter((wallet) => wallet.address.startsWith("0x"))
+      .map((wallet) => ({
+        address: wallet.address,
+        labels: wallet.labels,
+      }));
+
+    const labeledAddresses = new Set(walletLabels.map((w) => w.address));
+    ethWallets
+      .filter((addr) => !labeledAddresses.has(addr))
+      .forEach((addr) =>
+        allEthWallets.push({
+          address: addr,
+          labels: [],
+        })
+      );
     return NextResponse.json({
-      pfpUrl,
-      username,
-      display_name,
-      fids,
-      followerscount,
-      followCount,
+      fid: user?.fid,
+      username: user?.username,
+      displayName: user?.displayName,
+      bio: user?.profile?.bio?.text,
+      location: user?.profile?.location?.description,
+      followerCount: user?.followerCount,
+      followingCount: user?.followingCount,
+      pfp: user?.pfp,
+      accountLevel: user?.profile?.accountLevel,
+      wallets: allEthWallets, 
     });
   } catch (error) {
     console.error("Unexpected error:", error);
