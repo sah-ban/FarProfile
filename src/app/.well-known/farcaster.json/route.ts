@@ -27,7 +27,7 @@ export async function GET() {
       ogImageUrl: `${appUrl}/og.png`,
       tags: ["farcaster", "profile", "account", "created", "farprofile"],
       heroImageUrl: `${appUrl}/og.png`,
-      tagline: "Discover your Farcaster Profiles",
+      tagline: "Farcaster Profile",
       ogTitle: "FarProfile - Farcaster Profile",
       ogDescription:
         "user's profile information.",
