@@ -406,7 +406,7 @@ export default function Main() {
                         )}
                       </button>
 
-                      <span className="font-mono text-sm">
+                      <span className="font-mono text-sm text-white">
                         {shorten(w.address)}
                       </span>
 
