@@ -450,10 +450,11 @@ export default function Main() {
             </div>
           )}
         </main>
-
-        <footer>
-          <CheckInComponent />
-        </footer>
+        {context?.client.clientFid === 9152 && (
+          <footer>
+            <CheckInComponent />
+          </footer>
+        )}
 
         {/* <MintButton fid={context.user.fid} /> */}
       </div>
