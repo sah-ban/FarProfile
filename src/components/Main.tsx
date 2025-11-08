@@ -1,40 +1,25 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
+import Image from "next/image";
 import sdk, { type Context } from "@farcaster/miniapp-sdk";
-import {
-  useAccount,
-  useSendTransaction,
-  useWaitForTransactionReceipt,
-  useConnect,
-} from "wagmi";
-import { encodeFunctionData } from "viem";
-import { abi } from "../contracts/abi";
+import { useAccount } from "wagmi";
 import axios from "axios";
 import { useSearchParams } from "next/navigation";
-import { config } from "~/components/providers/WagmiProvider";
-import { BaseError, UserRejectedRequestError } from "viem";
+import Toast from "./Toast";
+import Connect from "./Connect";
+// import MintButton from "./MintButton";
+import LoadingScreen from "./Loading";
+import CheckInComponent from "./streak";
 
 export default function Main() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<Context.MiniAppContext>();
-  const [txHash, setTxHash] = useState<string | null>(null);
-  const [refid, setRefid] = useState<string | undefined>();
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [fid, setFid] = useState<number | undefined>(undefined);
 
   const { isConnected } = useAccount();
-
-  const {
-    sendTransaction,
-    error: sendTxError,
-    isError: isSendTxError,
-    isPending: isSendTxPending,
-  } = useSendTransaction();
-
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({
-      hash: txHash as `0x${string}`,
-    });
-  const { connect } = useConnect();
 
   useEffect(() => {
     const load = async () => {
@@ -52,14 +37,26 @@ export default function Main() {
     }
   }, [isSDKLoaded]);
 
-  interface ProfileResponse {
-    pfpUrl: string;
-    username: string;
-    display_name: string;
-    fids: string;
-    followingcount: string;
-    followerscount: string;
+  interface Wallet {
+    address: string;
+    labels?: string[];
   }
+
+  type Profile = {
+    fid: number;
+    username: string;
+    displayName: string;
+    bio: string;
+    location: string;
+    followerCount: number;
+    followingCount: number;
+    pfp: {
+      url: string;
+      verified: boolean;
+    };
+    accountLevel: string;
+    wallets: Wallet[]; // 👈 added wallet list
+  };
 
   interface TimeResponse {
     timestamp: string;
@@ -67,105 +64,84 @@ export default function Main() {
   interface LFidResponse {
     lastFid: string;
   }
-  const [profileData, setProfileData] = useState<ProfileResponse>();
-
-  const Profile = useCallback(async (fid: string) => {
-    try {
-      const response = await fetch(`/api/profile?fid=${fid}`);
-      if (!response.ok) {
-        throw new Error(`Fid HTTP error! Status: ${response.status}`);
-      }
-      const profileResponseData = await response.json();
-      setProfileData({
-        pfpUrl: profileResponseData.pfpUrl,
-        username: profileResponseData.username,
-        display_name: profileResponseData.display_name,
-        fids: profileResponseData.fids,
-        followingcount: profileResponseData.followCount,
-        followerscount: profileResponseData.followerscount,
-      });
-    } catch (err) {
-      console.error("Error fetching profile data", err);
-    }
-  }, []);
-
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [timeData, setTimeData] = useState<TimeResponse>();
-
-  const accountCreated = useCallback(async (fid: string) => {
-    try {
-      const response = await fetch(`/api/timeCreated?fid=${fid}`);
-      if (!response.ok) {
-        throw new Error(`Fid HTTP error! Status: ${response.status}`);
-      }
-      const timeResponseData = await response.json();
-      setTimeData({
-        timestamp: timeResponseData.timestamp,
-      });
-    } catch (err) {
-      console.error("Error fetching account creation date", err);
-    }
-  }, []);
-
   const [LFidData, setLFidData] = useState<LFidResponse>();
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [loadingTime, setLoadingTime] = useState(false);
+  const [loadingLFid, setLoadingLFid] = useState(false);
 
-  const LastFid = useCallback(async () => {
+  const loading = loadingProfile || loadingTime || loadingLFid;
+
+  async function fetchProfile(fid: number) {
     try {
-      const response = await fetch(`/api/lastFID`);
-      if (!response.ok) {
-        throw new Error(`Fid HTTP error! Status: ${response.status}`);
-      }
-      const FidResponseData = await response.json();
-      setLFidData({
-        lastFid: FidResponseData.lastFid,
-      });
+      setLoadingProfile(true);
+      const res = await fetch(`/api/profile?fid=${fid}`);
+      const data = await res.json();
+      setProfile(data);
     } catch (err) {
-      console.error("Error fetching most recent FID", err);
+      console.error("Error fetching profile:", err);
+    } finally {
+      setLoadingProfile(false);
     }
-  }, []);
+  }
 
-  useEffect(() => {
-    if (!context?.client.added) {
-      sdk.actions.addFrame();
+  async function accountCreated(fid: string) {
+    try {
+      setLoadingTime(true);
+      const res = await fetch(`/api/timeCreated?fid=${fid}`);
+      const data = await res.json();
+      setTimeData({ timestamp: data.timestamp });
+    } catch (err) {
+      console.error("Error fetching account creation date:", err);
+    } finally {
+      setLoadingTime(false);
     }
-  }, [context?.client.added]);
+  }
+
+  async function LastFid() {
+    try {
+      setLoadingLFid(true);
+      const res = await fetch(`/api/lastFID`);
+      const data = await res.json();
+      setLFidData({ lastFid: data.lastFid });
+    } catch (err) {
+      console.error("Error fetching most recent FID:", err);
+    } finally {
+      setLoadingLFid(false);
+    }
+  }
 
   const searchParams = useSearchParams();
   const castFid = searchParams.get("castFid");
+
   useEffect(() => {
     if (castFid) {
-      setRefid(castFid);
+      setFid(Number(castFid));
+    } else if (context?.user?.fid) {
+      setFid(context.user.fid);
     }
-  }, [context]);
+  }, [context, castFid]);
 
   useEffect(() => {
-    if (context?.user.fid && !castFid) {
-      Profile(String(context.user.fid));
-      accountCreated(String(context.user.fid));
-      LastFid();
+    if (fid) {
+      fetchProfile(fid);
+      accountCreated(String(fid));
     }
-  }, [context?.user.fid]);
-  useEffect(() => {
-    if (refid) {
-      Profile(String(refid));
-      accountCreated(String(refid));
-      LastFid();
-    }
-  }, [refid]);
+  }, [fid]);
 
-  const user =
-    refid && refid !== String(context?.user.fid)
-      ? `@${profileData?.username}`
-      : "I";
-  const users =
-    refid && refid !== String(context?.user.fid)
-      ? `@${profileData?.username}`
-      : "me";
+  useEffect(() => {
+    LastFid();
+  }, []);
+
+  const user = context?.user?.fid !== fid ? `@${profile?.username}` : "I";
+  const users = context?.user?.fid !== fid ? `@${profile?.username}` : "me";
 
   const cast = async (): Promise<string | undefined> => {
     try {
       const result = await sdk.actions.composeCast({
         text: `${user} joined Farcaster on ${formattedDate}, which was ${timeAgo} ago.\nSince then, ${percent} percent of users have joined after ${users}\nminiapp by @cashlessman.eth`,
-        embeds: [`https://far-profile.vercel.app/?fid=${profileData?.fids}`],
+        embeds: [`${process.env.NEXT_PUBLIC_URL}/?fid=${fid}`],
       });
 
       return result.cast?.hash;
@@ -237,39 +213,60 @@ export default function Main() {
   }
 
   const percent = (
-    (Number(Number(LFidData?.lastFid) - Number(profileData?.fids)) /
+    (Number(Number(LFidData?.lastFid) - Number(fid)) /
       Number(LFidData?.lastFid)) *
     100
   ).toFixed(1);
 
-  if (!context?.user.fid)
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const shorten = (address: string) =>
+    address.length > 12
+      ? `${address.slice(0, 6)}...${address.slice(-4)}`
+      : address;
+
+  const handleCopy = (address: string) => {
+    navigator.clipboard.writeText(address);
+    setCopied(address);
+    setTimeout(() => setCopied(null), 1500);
+  };
+
+  const openInterface = (address: string) => {
+    sdk.actions.openUrl(`https://app.interface.social/${address}`);
+  };
+
+  if (!context)
     return (
       <div className="flex items-center justify-center h-screen bg-gray-900">
         <div className="flex flex-col items-center justify-center text-white text-2xl p-4">
           <p className="flex items-center justify-center text-center">
-            you need to access this miniapp from inside a farcaster client
+            You need to access this mini app from inside a farcaster client
           </p>
-          <p className="flex items-center justify-center text-center">
-            (click on the logo to open in Farcaster)
-          </p>
-
-          <div className="flex items-center justify-center p-2 bg-white rounded-lg mt-4">
-            <a
-              href="https://farcaster.xyz/cashlessman.eth/0xcaf78007"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shadow-lg shadow-white"
-            >
-              <img
-                src="https://warpcast.com/og-logo.png"
-                alt="Profile"
-                className="w-28 h-28 shadow-lg"
-              />
-            </a>
+          <div
+            className="flex items-center justify-center text-center bg-indigo-800 p-3 rounded-lg mt-4 cursor-pointer"
+            onClick={() =>
+              window.open(
+                "https://farcaster.xyz/miniapps/g55PQkYEJNJ5/quotes-app",
+                "_blank"
+              )
+            }
+          >
+            Open in Farcaster
           </div>
         </div>
       </div>
     );
+
+  if (!isConnected) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full">
+        <Connect />
+      </div>
+    );
+  }
+
+  if (loading) return <LoadingScreen />;
+
   return (
     <div
       style={{
@@ -277,61 +274,188 @@ export default function Main() {
         paddingBottom: context?.client.safeAreaInsets?.bottom ?? 0,
         paddingLeft: context?.client.safeAreaInsets?.left ?? 0,
         paddingRight: context?.client.safeAreaInsets?.right ?? 0,
+        height: "100vh",
+        boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
-      <div className="flex flex-col w-full min-h-screen bg-gradient-to-br from-[#6B4EFF] to-[#8C52FF] text-[#FFDEAD] items-center justify-center p-6">
-        <Search />
+      <div className="w-auto bg-slate-900 flex flex-col h-full">
+        <header>
+          <Search />
+        </header>
 
-        <div className="bg-white bg-opacity-10 p-6 rounded-2xl shadow-lg flex flex-col items-center text-center mt-10 w-full max-w-md">
-          <img
-            src={profileData?.pfpUrl}
-            alt="Profile"
-            className="w-28 h-28 rounded-full border-4 border-white shadow-lg"
-          />
-          <div className="mt-4">
-            <h2 className="text-2xl font-extrabold text-white">
-              {profileData?.display_name}
-            </h2>
-            <p className="text-lg text-gray-300">@{profileData?.username}</p>
-          </div>
-          <div className="flex justify-around w-full mt-4">
-            <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-              <span className="text-lg font-bold text-white">
-                {profileData?.followingcount}
-              </span>
-              <p className="text-gray-300 text-sm">Following</p>
+        <main className="flex-grow overflow-auto mx-2">
+          {showToast && (
+            <Toast message={toastMessage} onClose={() => setShowToast(false)} />
+          )}
+
+          <div className="max-w-sm border p-4 rounded-2xl shadow-md bg-[#16101e] text-white mt-2">
+            <div className="flex items-center space-x-4">
+              <div className="relative">
+                <Image
+                  src={profile?.pfp?.url ?? "https://farcaster.xyz/avatar.png"}
+                  alt={profile?.displayName ?? "avatar"}
+                  width={64}
+                  height={64}
+                  className="w-16 h-16 rounded-full border"
+                  unoptimized
+                />
+                {profile?.accountLevel && (
+                  <div className="absolute bottom-0 right-0 bg-white rounded-full p-0.5">
+                    <Image
+                      src="/verified.svg"
+                      alt="Verified"
+                      width={14}
+                      height={14}
+                      className="w-3.5 h-3.5"
+                      unoptimized
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h2 className="text-lg font-bold">{profile?.displayName}</h2>
+                <p className="text-gray-300">@{profile?.username}</p>
+              </div>
             </div>
-            <div className="bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-              <span className="text-lg font-bold text-white">
-                {profileData?.followerscount}
-              </span>
-              <p className="text-gray-300 text-sm">Followers</p>
+
+            {/* Bio */}
+            {profile?.bio && (
+              <p className="mt-3 text-sm whitespace-pre-line">{profile.bio}</p>
+            )}
+
+            {/* Location */}
+            {profile?.location && (
+              <p className="mt-2 text-xs text-gray-600">
+                📍 {profile?.location}
+              </p>
+            )}
+
+            {/* Stats */}
+            <div className="flex space-x-6 mt-3 text-sm">
+              <p>
+                <span className="font-semibold">{profile?.followingCount}</span>{" "}
+                Following
+              </p>
+              <p>
+                <span className="font-semibold">{profile?.followerCount}</span>{" "}
+                Followers
+              </p>
+              <p>
+                <span className="font-semibold">{fid ?? "loading"}</span> FID
+              </p>
             </div>
           </div>
-        </div>
-        <div className="bg-white bg-opacity-10 p-4 rounded-2xl shadow-lg mt-6 text-center w-full max-w-md">
-          <p className="text-lg text-white">Joined Farcaster on</p>
-          <p className="text-xl font-semibold text-[#FFDEAD] mt-1">
-            {formattedDate}
-          </p>
-          <p className="text-md text-gray-300 mt-1">{timeAgo} ago</p>
-          <p className="text-md text-gray-200 mt-2 font-bold">
-            {(
-              ((Number(LFidData?.lastFid) - Number(profileData?.fids)) /
-                Number(LFidData?.lastFid)) *
-              100
-            ).toFixed(1)}
-            % of users joined after {refid ? profileData?.username : "you"}
-          </p>
-        </div>
-        <p className="text-lg text-white m-3 flex items-center">
-          Latest registered FID:{" "}
-          <span className="font-semibold text-[#FFDEAD] ml-2">
-            {LFidData?.lastFid}
-          </span>
-          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse ml-2"></span>
-        </p>
-        <Mint />
+
+          <div className="w-full max-w-md mt-3 p-3 rounded-2xl text-center bg-white/8 backdrop-blur-lg backdrop-saturate-150 border border-white/20 shadow-lg">
+            <p className="text-base text-white">Joined Farcaster on</p>
+            <p className="text-lg font-semibold text-[#FFDEAD] mt-1">
+              {formattedDate}
+            </p>
+            <p className="text-base text-gray-300 mt-1">{timeAgo} ago</p>
+            <p className="text-md text-gray-200 mt-2 font-bold">
+              {(
+                ((Number(LFidData?.lastFid) - Number(fid)) /
+                  Number(LFidData?.lastFid)) *
+                100
+              ).toFixed(1)}
+              % of users joined after{" "}
+              {context?.user?.fid !== fid ? profile?.username : "you"}
+            </p>
+          </div>
+          {profile?.wallets && profile.wallets.length > 0 && (
+            <div className="bg-[#16101e] p-3 rounded-2xl shadow-lg mt-3 text-center w-full max-w-md border">
+              <ul>
+                {profile?.wallets?.map((w, i: number) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between border-b p-2 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleCopy(w.address)}
+                        className="text-xs text-white"
+                        title="Copy address"
+                      >
+                        {copied === w.address ? (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="size-6"
+                          >
+                            <path d="M7.5 3.375c0-1.036.84-1.875 1.875-1.875h.375a3.75 3.75 0 0 1 3.75 3.75v1.875C13.5 8.161 14.34 9 15.375 9h1.875A3.75 3.75 0 0 1 21 12.75v3.375C21 17.16 20.16 18 19.125 18h-9.75A1.875 1.875 0 0 1 7.5 16.125V3.375Z" />
+                            <path d="M15 5.25a5.23 5.23 0 0 0-1.279-3.434 9.768 9.768 0 0 1 6.963 6.963A5.23 5.23 0 0 0 17.25 7.5h-1.875A.375.375 0 0 1 15 7.125V5.25ZM4.875 6H6v10.125A3.375 3.375 0 0 0 9.375 19.5H16.5v1.125c0 1.035-.84 1.875-1.875 1.875h-9.75A1.875 1.875 0 0 1 3 20.625V7.875C3 6.839 3.84 6 4.875 6Z" />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="size-6"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75"
+                            />
+                          </svg>
+                        )}
+                      </button>
+
+                      <span className="font-mono text-sm">
+                        {shorten(w.address)}
+                      </span>
+
+                      {w.labels && w.labels.length > 0 && (
+                        <span className="flex gap-2">
+                          {w.labels.map((label: string, idx: number) => (
+                            <span
+                              key={idx}
+                              className={`px-2 py-0.5 rounded-xl text-white text-xs font-semibold ${
+                                label.toLowerCase() === "primary"
+                                  ? "bg-green-500"
+                                  : label.toLowerCase() === "warpcast"
+                                  ? "bg-[#8660cc]"
+                                  : "bg-gray-500"
+                              }`}
+                            >
+                              {label}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => openInterface(w.address)}
+                      className="w-6 h-6 flex-shrink-0"
+                      title="Open in Interface"
+                    >
+                      <Image
+                        src="/interface.png"
+                        alt="icon"
+                        width={24}
+                        height={24}
+                        className="w-6 h-6 object-contain rounded-lg"
+                        unoptimized
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </main>
+
+        <footer>
+          <CheckInComponent />
+        </footer>
+
+        {/* <MintButton fid={context.user.fid} /> */}
       </div>
     </div>
   );
@@ -339,32 +463,30 @@ export default function Main() {
   function Search() {
     const [searchValue, setSearchValue] = useState("");
 
-    const usernameToFid = useCallback(
-      async (searchValue: string) => {
-        try {
-          const username = searchValue.includes("@")
-            ? searchValue.replace("@", "")
-            : searchValue;
+    const usernameToFid = useCallback(async (searchValue: string) => {
+      try {
+        const username = searchValue.includes("@")
+          ? searchValue.replace("@", "")
+          : searchValue;
 
-          const apiUrl = `${process.env.NEXT_PUBLIC_HubUrl}/v1/userNameProofByName?name=${username}`;
-          const pinataResponse = await axios.get(apiUrl);
-          const searchFid = pinataResponse.data.fid;
+        const apiUrl = `${process.env.NEXT_PUBLIC_HubUrl}/v1/userNameProofByName?name=${username}`;
+        const response = await axios.get(apiUrl);
+        const searchFid = response.data.fid;
 
-          setRefid(searchFid);
-        } catch {
-          alert("please enter a valid username");
-          // console.error('Error fetching data:', error);
-        }
-      },
-      [searchValue]
-    );
+        setFid(searchFid);
+      } catch {
+        setToastMessage("Please enter a valid username");
+        setShowToast(true);
+        // console.error('Error fetching data:', error);
+      }
+    }, []);
     return (
-      <div className="absolute top-0 flex flex-row w-full items-center justify-between bg-gradient-to-r from-[#6B4EFF] to-[#8C52FF] p-3 border-b border-white/20 shadow-md">
+      <div className="flex flex-row w-full items-center justify-between bg-slate-900 p-2 border-b border-white/20 shadow-md">
         <div className="flex items-center gap-3">
           <input
-            className="w-[200px] p-2 bg-white/20 text-white text-base rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-[#FFDEAD] placeholder-white/80"
+            className="w-[220px] p-2 bg-white/20 text-white text-base rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-[#FFDEAD] placeholder-white/80"
             type="text"
-            placeholder="Search for a username"
+            placeholder="Search for username"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             onKeyDown={(e) => {
@@ -396,7 +518,29 @@ export default function Main() {
 
         <div
           className="bg-white/20 hover:bg-white/30 transition p-2 rounded-xl flex items-center justify-center cursor-pointer"
-          onClick={() => cast()}
+          onClick={() =>
+            sdk.actions.viewCast({
+              hash: "0xaba31427ae981da207271a59e9e42aebd3c969af",
+            })
+          }
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="white"
+            viewBox="0 0 24 24"
+            className="w-6 h-6"
+          >
+            <path
+              fillRule="evenodd"
+              d="M12 2C6.477 2 2 6.478 2 12s4.477 10 10 10 10-4.478 10-10S17.523 2 12 2Zm0 5a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V8a1 1 0 0 1 1-1Zm0 10.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
+
+        <div
+          className="bg-white/20 hover:bg-white/30 transition p-2 rounded-xl flex items-center justify-center cursor-pointer"
+          onClick={cast}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -414,135 +558,4 @@ export default function Main() {
       </div>
     );
   }
-  function Mint() {
-    const [isClicked, setIsClicked] = useState(false);
-
-    const CONTRACT_ADDRESS = "0x710EECB609366b70B0b2649ac3c2337a260D414C";
-    const handleMint = () => {
-      setIsClicked(true);
-      setTimeout(() => {
-        if (isConnected) {
-          sendTx();
-        } else {
-          connect({ connector: config.connectors[0] });
-        }
-      }, 500);
-
-      setTimeout(() => setIsClicked(false), 500);
-    };
-    const sendTx = useCallback(() => {
-      const data = encodeFunctionData({
-        abi,
-        functionName: "mintNFT",
-        args: [context?.user.fid],
-      });
-      sendTransaction(
-        {
-          to: CONTRACT_ADDRESS,
-          data,
-          value: BigInt(300000000000000), // 0.0003 ETH
-        },
-        {
-          onSuccess: (hash) => {
-            setTxHash(hash);
-          },
-        }
-      );
-    }, [sendTransaction]);
-    return (
-      <div className="flex flex-col">
-        <button
-          onClick={handleMint}
-          disabled={isSendTxPending}
-          className="text-white text-center py-3 rounded-xl font-semibold text-lg shadow-lg relative overflow-hidden transform transition-all duration-200 hover:scale-110 active:scale-95 flex items-center justify-center gap-2"
-          style={{
-            background:
-              "linear-gradient(90deg, #8B5CF6, #7C3AED, #A78BFA, #8B5CF6)",
-            backgroundSize: "300% 100%",
-            animation: "gradientAnimation 3s infinite ease-in-out",
-          }}
-        >
-          <div
-            className={`absolute inset-0 bg-[#38BDF8] transition-all duration-500 ${
-              isClicked ? "scale-x-100" : "scale-x-0"
-            }`}
-            style={{ transformOrigin: "center" }}
-          ></div>
-          <style>{`
-              @keyframes gradientAnimation {
-                0% { background-position: 0% 50%; }
-                50% { background-position: 100% 50%; }
-                100% { background-position: 0% 50%; }
-              }
-            `}</style>
-          {isConnected ? <MintButton /> : "Connect Wallet"}
-        </button>
-        <div className="text-center">
-          {isSendTxError && renderError(sendTxError)}
-          {txHash && (
-            <div className="mt-2 text-xs">
-              <div>
-                Status:{" "}
-                {isConfirming
-                  ? "Confirming..."
-                  : isConfirmed
-                  ? "Confirmed!"
-                  : "Pending"}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-  function MintButton() {
-    return (
-      <div className="flex flex-row gap-2 px-5">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="currentColor"
-          className="w-6 h-6 relative z-10"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"
-          />
-        </svg>
-        <span className="relative z-10">Mint your FarProfile</span>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="currentColor"
-          className="w-6 h-6 relative z-10"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"
-          />
-        </svg>{" "}
-      </div>
-    );
-  }
 }
-
-const renderError = (error: Error | null) => {
-  if (!error) return null;
-  if (error instanceof BaseError) {
-    const isUserRejection =
-      error instanceof UserRejectedRequestError ||
-      (error.cause && error.cause instanceof UserRejectedRequestError);
-
-    if (isUserRejection) {
-      return <div className="text-red-500 text-xs mt-1">Rejected by user.</div>;
-    }
-  }
-
-  return <div className="text-red-500 text-xs mt-1">{error.message}</div>;
-};
