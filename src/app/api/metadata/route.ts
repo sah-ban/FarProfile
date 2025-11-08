@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    name: `FarProfile of FID:${fid}`,
-    description: "An NFT of FarProfile",
+    name: "FarProfile",
+    description: `FarProfile of FID: ${fid}`,
     image: `${process.env.NEXT_PUBLIC_URL}/nft?fid=${fid}`,
     attributes: [{ trait_type: "FID", value: fid }],
   });
