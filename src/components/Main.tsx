@@ -246,7 +246,7 @@ export default function Main() {
             className="flex items-center justify-center text-center bg-indigo-800 p-3 rounded-lg mt-4 cursor-pointer"
             onClick={() =>
               window.open(
-                "https://farcaster.xyz/miniapps/g55PQkYEJNJ5/quotes-app",
+                "https://farcaster.xyz/miniapps/MoA1BK1RvAsY/farprofile",
                 "_blank"
               )
             }
