@@ -30,7 +30,7 @@ const MintButton: React.FC<MintButtonProps> = ({ fid }) => {
       writeContract({
         address: CONTRACT_ADDRESS,
         abi,
-        functionName: "mintNFT",
+        functionName: "mint",
         args: [fid],
         value: parseEther("0.0003"),
         chainId: base.id,
