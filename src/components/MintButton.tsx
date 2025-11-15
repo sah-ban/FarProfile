@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import sdk from "@farcaster/miniapp-sdk";
 
 const CONTRACT_ADDRESS =
-  "0x710EECB609366b70B0b2649ac3c2337a260D414C" as Address;
+  "0xD01b4C97266Ef8ec987D21A8Cf332EA0Fa3730cB" as Address;
 
 interface MintButtonProps {
   fid: number | string;
@@ -47,7 +47,7 @@ const MintButton: React.FC<MintButtonProps> = ({ fid }) => {
   }, [isConfirmed]);
 
   return (
-    <div >
+    <div className="w-full flex justify-center">
       <button
         onClick={handleMintNFT}
         disabled={isPending || isConfirming || isConfirmed}

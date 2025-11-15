@@ -8,7 +8,7 @@ import axios from "axios";
 import { useSearchParams } from "next/navigation";
 import Toast from "./Toast";
 import Connect from "./Connect";
-// import MintButton from "./MintButton";
+import MintButton from "./MintButton";
 import LoadingScreen from "./Loading";
 import CheckInComponent from "./streak";
 
@@ -452,11 +452,10 @@ export default function Main() {
         </main>
         {context?.client.clientFid === 9152 && (
           <footer>
+            <MintButton fid={context.user.fid} />
             <CheckInComponent />
           </footer>
         )}
-
-        {/* <MintButton fid={context.user.fid} /> */}
       </div>
     </div>
   );
