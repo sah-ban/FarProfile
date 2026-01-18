@@ -10,7 +10,7 @@ import Toast from "./Toast";
 import Connect from "./Connect";
 import MintButton from "./MintButton";
 import LoadingScreen from "./Loading";
-import CheckInComponent from "./streak";
+// import CheckInComponent from "./streak";
 
 export default function Main() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -247,7 +247,7 @@ export default function Main() {
             onClick={() =>
               window.open(
                 "https://farcaster.xyz/miniapps/MoA1BK1RvAsY/farprofile",
-                "_blank"
+                "_blank",
               )
             }
           >
@@ -283,12 +283,10 @@ export default function Main() {
         <header>
           <Search />
         </header>
-
-        <main className="flex-grow overflow-auto mx-2">
+        <main className="flex-grow overflow-auto mx-2 justify-center items-center flex flex-col">
           {showToast && (
             <Toast message={toastMessage} onClose={() => setShowToast(false)} />
           )}
-
           <div className="max-w-sm border p-4 rounded-2xl shadow-md bg-[#16101e] text-white mt-2">
             <div className="flex items-center space-x-4">
               <div className="relative">
@@ -347,7 +345,6 @@ export default function Main() {
               </p>
             </div>
           </div>
-
           <div className="w-full max-w-md mt-3 p-3 rounded-2xl text-center bg-white/8 backdrop-blur-lg backdrop-saturate-150 border border-white/20 shadow-lg">
             <p className="text-base text-white">Joined Farcaster on</p>
             <p className="text-lg font-semibold text-[#FFDEAD] mt-1">
@@ -419,8 +416,8 @@ export default function Main() {
                                 label.toLowerCase() === "primary"
                                   ? "bg-green-500"
                                   : label.toLowerCase() === "warpcast"
-                                  ? "bg-[#8660cc]"
-                                  : "bg-gray-500"
+                                    ? "bg-[#8660cc]"
+                                    : "bg-gray-500"
                               }`}
                             >
                               {label}
@@ -450,10 +447,9 @@ export default function Main() {
             </div>
           )}
         </main>
-        <footer>
+        <div className="p-4 border-t border-white/20 bg-slate-900 shadow-md">
           <MintButton fid={context.user.fid} />
-          {context?.client.clientFid === 9152 && <CheckInComponent />}
-        </footer>
+        </div>
       </div>
     </div>
   );
