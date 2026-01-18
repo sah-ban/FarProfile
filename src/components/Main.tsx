@@ -11,6 +11,7 @@ import Connect from "./Connect";
 import MintButton from "./MintButton";
 import LoadingScreen from "./Loading";
 // import CheckInComponent from "./streak";
+import SupportDeveloperCard from "./SupportDeveloperCard";
 
 export default function Main() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -234,6 +235,18 @@ export default function Main() {
   const openInterface = (address: string) => {
     sdk.actions.openUrl(`https://app.interface.social/${address}`);
   };
+
+  const [showPopup, setShowPopup] = useState(false);
+
+  useEffect(() => {
+    setShowPopup(true);
+
+    const timer = setTimeout(() => {
+      setShowPopup(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   if (!context)
     return (
@@ -510,28 +523,20 @@ export default function Main() {
           </div>
         </div>
 
-        <div
-          className="bg-white/20 hover:bg-white/30 transition p-2 rounded-xl flex items-center justify-center cursor-pointer"
-          onClick={() =>
-            sdk.actions.viewCast({
-              hash: "0xaba31427ae981da207271a59e9e42aebd3c969af",
-            })
-          }
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="white"
-            viewBox="0 0 24 24"
-            className="w-6 h-6"
-          >
-            <path
-              fillRule="evenodd"
-              d="M12 2C6.477 2 2 6.478 2 12s4.477 10 10 10 10-4.478 10-10S17.523 2 12 2Zm0 5a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V8a1 1 0 0 1 1-1Zm0 10.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z"
-              clipRule="evenodd"
-            />
-          </svg>
+        <div className="relative flex flex-col items-center">
+          <SupportDeveloperCard />
+          {showPopup && (
+            <div className="absolute top-12 z-50 bg-white text-gray-900 text-sm px-3 py-2 rounded-lg shadow-lg w-[150px] text-center font-semibold">
+              Tip the developer
+              <div
+                className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 
+                    border-l-8 border-l-transparent 
+                    border-r-8 border-r-transparent 
+                    border-b-8 border-b-white"
+              ></div>
+            </div>
+          )}
         </div>
-
         <div
           className="bg-white/20 hover:bg-white/30 transition p-2 rounded-xl flex items-center justify-center cursor-pointer"
           onClick={cast}
