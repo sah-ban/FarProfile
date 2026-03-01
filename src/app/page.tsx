@@ -49,6 +49,7 @@ export async function generateMetadata({
     },
     other: {
       "fc:frame": JSON.stringify(frame),
+      "base:app_id": "69a46811955255bb0fb04e8e",
     },
   };
 }
