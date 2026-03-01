@@ -40,7 +40,7 @@ const MintButton: React.FC<MintButtonProps> = ({ fid }) => {
             args: [fid],
           }),
         ),
-        value: parseEther("0.00018"),
+        value: parseEther("0.00025"),
         chainId: base.id,
       });
     }, 500);
