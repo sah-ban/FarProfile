@@ -2,21 +2,25 @@ import React, { useState, useEffect } from "react";
 import {
   useAccount,
   useReadContract,
-  useWriteContract,
+  useSendTransaction,
   useWaitForTransactionReceipt,
   useSwitchChain,
 } from "wagmi";
-import { parseUnits, Address } from "viem";
+import { parseUnits, Address, encodeFunctionData } from "viem";
 import CheckInStreakABI from "../contracts/streakAbi.json";
 import USDCABI from "../contracts/USDC.json";
 import { Hash } from "viem";
 import { base } from "wagmi/chains";
 import sdk, { type Context } from "@farcaster/miniapp-sdk";
+import { DATA_SUFFIX } from "~/components/providers/WagmiProvider";
 
 const CONTRACT_ADDRESS: Address = "0xE4EE6c6c75066AdFE8a69CC2fc3EAB26D0Be0837";
 const USDC_ADDRESS: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const BASE_CHAIN_ID = 8453;
 const SECONDS_PER_DAY = 86400;
+
+const withAttribution = (data: `0x${string}`) =>
+  `${data}${DATA_SUFFIX.slice(2)}` as `0x${string}`;
 
 interface Withdrawable {
   amount: bigint;
@@ -27,7 +31,7 @@ const CheckInComponent: React.FC = () => {
   const { address, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
 
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { sendTransaction, data: hash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({ hash });
 
@@ -35,20 +39,28 @@ const CheckInComponent: React.FC = () => {
   const [newClaimAmount, setNewClaimAmount] = useState<string>("");
   const [approveHash, setApproveHash] = useState<Hash | undefined>(undefined);
   const [context, setContext] = useState<Context.MiniAppContext>();
+  const [approvalPending, setApprovalPending] = useState(false);
 
   const { isSuccess: isApproved } = useWaitForTransactionReceipt({
     hash: approveHash,
   });
 
+  // Track when approval tx completes so we can set approveHash
+  useEffect(() => {
+    if (hash && approvalPending) {
+      setApproveHash(hash);
+      setApprovalPending(false);
+    }
+  }, [hash, approvalPending]);
+
   // Read lastCheckInDay
-  const { data: lastCheckInDay } =
-    useReadContract({
-      address: CONTRACT_ADDRESS,
-      abi: CheckInStreakABI,
-      functionName: "getLastCheckInDay",
-      args: [address],
-      query: { staleTime: 0 },
-    }) as { data: bigint | undefined };
+  const { data: lastCheckInDay } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: CheckInStreakABI,
+    functionName: "getLastCheckInDay",
+    args: [address],
+    query: { staleTime: 0 },
+  }) as { data: bigint | undefined };
 
   // Read current streak
   const { data: currentStreak, refetch: refetchCurrentStreak } =
@@ -101,15 +113,19 @@ const CheckInComponent: React.FC = () => {
       } catch (switchError) {
         console.error("Failed to switch chain:", switchError);
         throw new Error(
-          `Please manually switch to ${base.name} in your wallet.`
+          `Please manually switch to ${base.name} in your wallet.`,
         );
       }
     }
     try {
-      await writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: CheckInStreakABI,
-        functionName: "checkIn",
+      sendTransaction({
+        to: CONTRACT_ADDRESS,
+        data: withAttribution(
+          encodeFunctionData({
+            abi: CheckInStreakABI,
+            functionName: "checkIn",
+          }),
+        ),
         chainId: BASE_CHAIN_ID,
       });
     } catch (err) {
@@ -121,11 +137,15 @@ const CheckInComponent: React.FC = () => {
   const handleUpdateClaimAmount = async () => {
     try {
       const amount = parseUnits(newClaimAmount || "0", 6);
-      await writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: CheckInStreakABI,
-        functionName: "updateClaimAmount",
-        args: [amount],
+      sendTransaction({
+        to: CONTRACT_ADDRESS,
+        data: withAttribution(
+          encodeFunctionData({
+            abi: CheckInStreakABI,
+            functionName: "updateClaimAmount",
+            args: [amount],
+          }),
+        ),
         chainId: BASE_CHAIN_ID,
       });
     } catch (err) {
@@ -136,10 +156,14 @@ const CheckInComponent: React.FC = () => {
   // Handle request withdrawal (owner only)
   const handleRequestWithdraw = async () => {
     try {
-      await writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: CheckInStreakABI,
-        functionName: "requestWithdrawAllUSDC",
+      sendTransaction({
+        to: CONTRACT_ADDRESS,
+        data: withAttribution(
+          encodeFunctionData({
+            abi: CheckInStreakABI,
+            functionName: "requestWithdrawAllUSDC",
+          }),
+        ),
         chainId: BASE_CHAIN_ID,
       });
       refetchWithdrawable();
@@ -151,10 +175,14 @@ const CheckInComponent: React.FC = () => {
   // Handle claim withdrawal
   const handleClaimWithdrawal = async () => {
     try {
-      await writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: CheckInStreakABI,
-        functionName: "claimWithdrawal",
+      sendTransaction({
+        to: CONTRACT_ADDRESS,
+        data: withAttribution(
+          encodeFunctionData({
+            abi: CheckInStreakABI,
+            functionName: "claimWithdrawal",
+          }),
+        ),
         chainId: BASE_CHAIN_ID,
       });
     } catch (err) {
@@ -180,35 +208,38 @@ const CheckInComponent: React.FC = () => {
     if (!depositAmount) return;
     try {
       const amount = parseUnits(depositAmount || "0", 6);
-      await writeContract(
-        {
-          address: USDC_ADDRESS,
-          abi: USDCABI,
-          functionName: "approve",
-          args: [CONTRACT_ADDRESS, amount],
-          chainId: BASE_CHAIN_ID,
-        },
-        {
-          onSuccess: (hash: Hash) => {
-            setApproveHash(hash);
-          },
-        }
-      );
+      setApprovalPending(true);
+      sendTransaction({
+        to: USDC_ADDRESS,
+        data: withAttribution(
+          encodeFunctionData({
+            abi: USDCABI,
+            functionName: "approve",
+            args: [CONTRACT_ADDRESS, amount],
+          }),
+        ),
+        chainId: BASE_CHAIN_ID,
+      });
     } catch (err) {
+      setApprovalPending(false);
       console.error("Approval error:", err);
     }
   };
 
   useEffect(() => {
     if (isApproved && depositAmount) {
-      const deposit = async () => {
+      const doDeposit = async () => {
         try {
           const amount = parseUnits(depositAmount || "0", 6);
-          await writeContract({
-            address: CONTRACT_ADDRESS,
-            abi: CheckInStreakABI,
-            functionName: "depositUSDC",
-            args: [amount],
+          sendTransaction({
+            to: CONTRACT_ADDRESS,
+            data: withAttribution(
+              encodeFunctionData({
+                abi: CheckInStreakABI,
+                functionName: "depositUSDC",
+                args: [amount],
+              }),
+            ),
             chainId: BASE_CHAIN_ID,
           });
           setDepositAmount("");
@@ -217,9 +248,9 @@ const CheckInComponent: React.FC = () => {
           console.error("Deposit error:", err);
         }
       };
-      deposit();
+      doDeposit();
     }
-  }, [isApproved, depositAmount, writeContract]);
+  }, [isApproved, depositAmount, sendTransaction]);
 
   useEffect(() => {
     async function fetchData() {
@@ -252,18 +283,20 @@ const CheckInComponent: React.FC = () => {
 
           <button
             onClick={handleCheckIn}
-            disabled={isPending || isConfirming || checkedInToday || isConfirmed}
+            disabled={
+              isPending || isConfirming || checkedInToday || isConfirmed
+            }
             className="px-2 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold"
           >
             {isPending
               ? "Processing..."
               : isConfirming
-              ? "Checking in..."
-              : isConfirmed
-              ? "Checked in!"
-              : checkedInToday
-              ? `Checked in today`
-              : "Check in"}
+                ? "Checking in..."
+                : isConfirmed
+                  ? "Checked in!"
+                  : checkedInToday
+                    ? `Checked in today`
+                    : "Check in"}
           </button>
         </div>
         {address &&
@@ -293,10 +326,10 @@ const CheckInComponent: React.FC = () => {
                   {isPending
                     ? "Processing..."
                     : isConfirming
-                    ? "Depositing..."
-                    : isConfirmed
-                    ? "Deposited!"
-                    : "Deposit"}
+                      ? "Depositing..."
+                      : isConfirmed
+                        ? "Deposited!"
+                        : "Deposit"}
                 </button>
               </div>
             </div>
@@ -322,10 +355,10 @@ const CheckInComponent: React.FC = () => {
                   {isPending
                     ? "Processing..."
                     : isConfirming
-                    ? "Updating..."
-                    : isConfirmed
-                    ? "Updated!"
-                    : "Update amount"}
+                      ? "Updating..."
+                      : isConfirmed
+                        ? "Updated!"
+                        : "Update amount"}
                 </button>
               </div>
               <p className="text-gray-600 text-center mt-2">
@@ -344,8 +377,8 @@ const CheckInComponent: React.FC = () => {
                   {isPending || isConfirming
                     ? "Processing..."
                     : withdrawable && withdrawable.pending
-                    ? "Withdrawal Pending"
-                    : "Request Withdraw"}
+                      ? "Withdrawal Pending"
+                      : "Request Withdraw"}
                 </button>
 
                 <button
@@ -361,7 +394,9 @@ const CheckInComponent: React.FC = () => {
             </div>
           )}
         {isConfirmed && (
-          <p className="text-green-600 mt-4 text-center">You can Check in again tommorow</p>
+          <p className="text-green-600 mt-4 text-center">
+            You can Check in again tommorow
+          </p>
         )}
       </>
     </div>

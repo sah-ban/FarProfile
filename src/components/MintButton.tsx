@@ -1,14 +1,18 @@
 import React from "react";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { Address } from "viem";
+import { useSendTransaction, useWaitForTransactionReceipt } from "wagmi";
+import { Address, encodeFunctionData } from "viem";
 import abi from "../contracts/mintAbi.json";
 import { base } from "wagmi/chains";
 import { parseEther } from "viem";
 import { useEffect, useState } from "react";
 import sdk from "@farcaster/miniapp-sdk";
+import { DATA_SUFFIX } from "~/components/providers/WagmiProvider";
 
 const CONTRACT_ADDRESS =
   "0xD01b4C97266Ef8ec987D21A8Cf332EA0Fa3730cB" as Address;
+
+const withAttribution = (data: `0x${string}`) =>
+  `${data}${DATA_SUFFIX.slice(2)}` as `0x${string}`;
 
 interface MintButtonProps {
   fid: number | string;
@@ -16,7 +20,7 @@ interface MintButtonProps {
 
 const MintButton: React.FC<MintButtonProps> = ({ fid }) => {
   // Write hook
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { sendTransaction, data: hash, isPending } = useSendTransaction();
 
   const [isClicked, setIsClicked] = useState(false);
 
@@ -27,11 +31,15 @@ const MintButton: React.FC<MintButtonProps> = ({ fid }) => {
   const handleMintNFT = () => {
     setIsClicked(true);
     setTimeout(() => {
-      writeContract({
-        address: CONTRACT_ADDRESS,
-        abi,
-        functionName: "mint",
-        args: [fid],
+      sendTransaction({
+        to: CONTRACT_ADDRESS,
+        data: withAttribution(
+          encodeFunctionData({
+            abi,
+            functionName: "mint",
+            args: [fid],
+          }),
+        ),
         value: parseEther("0.00018"),
         chainId: base.id,
       });

@@ -3,10 +3,11 @@ import {
   useAccount,
   useReadContract,
   useWaitForTransactionReceipt,
-  useWriteContract,
+  useSendTransaction,
 } from "wagmi";
-import { parseUnits, formatUnits } from "viem";
+import { parseUnits, formatUnits, encodeFunctionData } from "viem";
 import sdk from "@farcaster/miniapp-sdk";
+import { DATA_SUFFIX } from "~/components/providers/WagmiProvider";
 
 const AMOUNTS = [1, 5, 10, 25];
 
@@ -31,13 +32,16 @@ const USDC_ABI = [
     inputs: [{ name: "owner", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
   },
-];
+] as const;
+
+const withAttribution = (data: `0x${string}`) =>
+  `${data}${DATA_SUFFIX.slice(2)}` as `0x${string}`;
 
 export default function SupportDeveloperCard() {
   const [open, setOpen] = useState(false);
 
   const { address, isConnected } = useAccount();
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { sendTransaction, data: hash, isPending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
       hash,
@@ -80,11 +84,15 @@ export default function SupportDeveloperCard() {
   const sendUSDC = () => {
     if (!numericAmount) return;
 
-    writeContract({
-      address: USDC_ADDRESS,
-      abi: USDC_ABI,
-      functionName: "transfer",
-      args: [RECIPIENT, parseUnits(amount, 6)],
+    sendTransaction({
+      to: USDC_ADDRESS,
+      data: withAttribution(
+        encodeFunctionData({
+          abi: USDC_ABI,
+          functionName: "transfer",
+          args: [RECIPIENT, parseUnits(amount, 6)],
+        }),
+      ),
     });
   };
 
@@ -99,7 +107,7 @@ export default function SupportDeveloperCard() {
       {/* TIP BUTTON */}
       <button
         onClick={() => setOpen(true)}
-            className="bg-white/20 hover:bg-white/30 transition p-2 rounded-xl flex items-center justify-center cursor-pointer"
+        className="bg-white/20 hover:bg-white/30 transition p-2 rounded-xl flex items-center justify-center cursor-pointer"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -115,7 +123,6 @@ export default function SupportDeveloperCard() {
             d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"
           />
         </svg>
-
       </button>
 
       {/* POPUP */}
@@ -225,14 +232,14 @@ export default function SupportDeveloperCard() {
                 {!isConnected
                   ? "Connect Wallet"
                   : !hasEnoughBalance
-                  ? "Insufficient Balance"
-                  : isPending
-                  ? "Processing..."
-                  : isConfirming
-                  ? "Sending..."
-                  : isConfirmed
-                  ? "Thank you for your support!"
-                  : `Send ${amount} USDC`}
+                    ? "Insufficient Balance"
+                    : isPending
+                      ? "Processing..."
+                      : isConfirming
+                        ? "Sending..."
+                        : isConfirmed
+                          ? "Thank you for your support!"
+                          : `Send ${amount} USDC`}
               </button>
             </div>
           </div>
