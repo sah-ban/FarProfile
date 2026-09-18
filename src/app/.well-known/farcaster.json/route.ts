@@ -29,6 +29,7 @@ export async function GET() {
       heroImageUrl: `${appUrl}/og.png`,
       tagline: "Farcaster Profile",
       ogTitle: "FarProfile - Farcaster Profile",
+      canonicalDomain: "farprofile.sahban.dev",
       ogDescription:
         "user's profile information.",
       requiredChains: ["eip155:8453"],
