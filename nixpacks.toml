@@ -1,0 +1,20 @@
+[phases.setup]
+nixPkgs = []
+aptPkgs = ["ca-certificates", "curl", "tar", "xz-utils"]
+paths = ["/opt/node/bin"]
+cmds = [
+  "curl --fail --silent --show-error --location --retry 3 https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz -o /tmp/farprofile-node.tar.xz",
+  "echo '6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6  /tmp/farprofile-node.tar.xz' | sha256sum --check -",
+  "mkdir -p /opt/node && tar --extract --xz --no-same-owner --file=/tmp/farprofile-node.tar.xz --directory=/opt/node --strip-components=1",
+  "npm install --global --prefix /opt/node yarn@1.22.22",
+  "node --version && yarn --version",
+]
+
+[phases.install]
+cmds = ["yarn install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["yarn run build"]
+
+[start]
+cmd = "node --version && yarn run start"
